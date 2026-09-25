@@ -45,7 +45,7 @@ class Reservation(Base):
     start_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     end_date: Mapped[datetime] = mapped_column(DateTime(timezone=True))
     status: Mapped[str] = mapped_column(String(30), default="PENDIENTE")
-    approved_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    approved_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
 
 
@@ -54,10 +54,10 @@ class AuditLog(Base):
     id: Mapped[int] = mapped_column(primary_key=True)
     action: Mapped[str] = mapped_column(String(30))
     table_name: Mapped[str] = mapped_column(String(80))
-    record_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    record_id: Mapped[int] = mapped_column(Integer, nullable=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now)
-    details: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    details: Mapped[dict] = mapped_column(JSON, nullable=True)
 
 
 class Notification(Base):
