@@ -1,3 +1,3 @@
 # ALLOCAT
 
-Proyecto Final de Ingeniería en Desarrollo de Software.
+Sistema ALLOCAT - Proyecto Final de Ingeniería en Desarrollo de Software.
