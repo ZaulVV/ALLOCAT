@@ -1,0 +1,17 @@
+.git
+.github
+frontend/
+**/.env
+**/node_modules
+**/dist
+**/coverage
+**/__pycache__
+**/*.py[cod]
+**/.pytest_cache
+**/.venv
+**/venv
+**/*.db
+**/*.sql
+*.log
+*.pdf
+*.md
