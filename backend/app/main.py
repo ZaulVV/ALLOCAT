@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from .config import get_settings
 from .database import Base, engine, SessionLocal
 from .models import Role
 from .routers import auth, users, resources, reservations, audit, reports, notifications
@@ -7,7 +8,7 @@ from .routers import auth, users, resources, reservations, audit, reports, notif
 app = FastAPI(title="ALLOCAT API", version="1.0.0")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=[o.strip() for o in get_settings().cors_origins.split(",") if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -1,0 +1,120 @@
+name: allocat
+
+# Entorno de pruebas para OWASP ZAP. Todas las credenciales de este archivo
+# son de prueba y no tienen relacion con backend/.env (que no se copia a la
+# imagen: el .dockerignore raiz excluye **/.env).
+#
+#   docker compose up -d --build      # MySQL + API + frontend
+#   docker compose --profile zap up -d zap
+#   .\tools\zap\scan.ps1              # seed + escaneo + reportes
+#   docker compose down -v            # reset total
+
+# Una sola definicion de la URL de la BD. Si se duplica y se desincroniza, el
+# seed o el backend escriben en otro lado y todo falla de forma silenciosa.
+x-db-url: &db-url "mysql+pymysql://allocat:allocat@db:3306/allocat"
+
+services:
+  db:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: allocat
+      MYSQL_USER: allocat
+      MYSQL_PASSWORD: allocat
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql-data:/var/lib/mysql
+    # sin `ports`: la BD no queda expuesta al host
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uallocat", "-pallocat"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: *db-url
+      JWT_SECRET_KEY: clave-de-pruebas-zap-no-usar-en-produccion
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: 120
+      CORS_ORIGINS: http://localhost:8080,http://127.0.0.1:8080
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: http://localhost:8000/api/v1
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+  # Un solo uso: crea usuarios por rol + un recurso y una reserva con id 1
+  # para que PUT/PATCH/DELETE tengan un destino real que no sea 404.
+  #   docker compose --profile tools run --rm seed
+  seed:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    profiles: ["tools"]
+    environment:
+      DATABASE_URL: *db-url
+    env_file:
+      - ./tools/test.env
+    volumes:
+      - ./tools:/app/tools:ro
+    command: ["python", "/app/tools/seed.py"]
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  zap:
+    image: ghcr.io/zaproxy/zaproxy:stable
+    profiles: ["zap"]
+    env_file:
+      - ./tools/test.env
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./tools/zap:/zap/scan:ro
+      - ./zap-reports:/zap/reports
+    # La imagen no tiene ENTRYPOINT (CMD=["bash"]), hay que invocar zap.sh.
+    # OJO: el puerto 8090 queda publicado pero NO es usable desde el host.
+    # ZAP 2.17 rechaza cualquier request que no venga de una direccion
+    # permitida y por defecto solo permite loopback:
+    #   WARN API - Request to API URL http://zap:8090/... from 172.19.0.4 not permitted
+    # La allow-list (clave interna `api.addrs.addr`) solo se puede cambiar
+    # editando config.xml dentro de /home/zap/.ZAP, que se regenera en cada
+    # arranque del contenedor, asi que no hay forma soportada de abrirla.
+    # Por eso el escaneo se hace SIEMPRE por dentro:
+    #   docker compose exec zap bash /zap/scan/scan.sh
+    # Ver seccion "ZAP" del README.
+    command:
+      - zap.sh
+      - -daemon
+      - -host
+      - "0.0.0.0"
+      - -port
+      - "8090"
+      - -config
+      - api.key=${ZAP_API_KEY:-zap-allocat-local}
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  mysql-data:
